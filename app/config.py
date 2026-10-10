@@ -4,7 +4,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     upstream_base_url: str = "https://api.deepseek.com"
     upstream_api_key: str = ""
@@ -22,6 +26,8 @@ class Settings(BaseSettings):
     max_sessions: int = 200
 
     expose_reasoning_content: bool = True
+
+    prompt_profile: str = "default"
 
     def resolved_api_key(self) -> str:
         return self.upstream_api_key or os.environ.get("DEEPSEEK_API_KEY", "")
