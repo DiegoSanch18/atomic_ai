@@ -416,11 +416,27 @@ def print_benchmark_report(metrics: Dict[str, Any], json_mode: bool = False) -> 
     print(header)
 
 
+def resolve_active_model(proxy_url: str = "http://127.0.0.1:8000", gateway_url: str = "http://127.0.0.1:8081", default: str = "auto") -> str:
+    """Discovers the active model currently running on LlamaLaunch Gateway or Atomic Proxy."""
+    if not requests:
+        return default
+    for base in [gateway_url, proxy_url]:
+        try:
+            r = requests.get(f"{base.rstrip('/')}/v1/models", timeout=1.2)
+            if r.status_code == 200:
+                models_data = r.json().get("data", [])
+                if models_data and isinstance(models_data, list) and "id" in models_data[0]:
+                    return models_data[0]["id"]
+        except Exception:
+            pass
+    return default
+
+
 def run_pipeline(
     prompt: str,
     proxy_url: str = "http://127.0.0.1:8000",
     gateway_url: str = "http://127.0.0.1:8081",
-    model: str = "deepseek-v4-flash",
+    model: Optional[str] = None,
     timeout: float = 120.0,
     stream: bool = True,
     mock: bool = False,
@@ -430,6 +446,12 @@ def run_pipeline(
     """
     Executes the end-to-end 3-tier pipeline or offline mock simulation.
     """
+    if not model or model.lower() in ("auto", "default", "auto-detect"):
+        if not mock:
+            model = resolve_active_model(proxy_url=proxy_url, gateway_url=gateway_url, default="auto")
+        else:
+            model = "auto"
+
     if not json_mode:
         header = "=" * 80
         print(header)
@@ -438,6 +460,7 @@ def run_pipeline(
             title += " [OFFLINE MOCK MODE]"
         print(colorize(title, BOLD))
         print(f"Target: {proxy_url} (Proxy) -> {gateway_url} (Gateway)")
+        print(f"Active Model: {colorize(model, GREEN + BOLD)}")
         print(header)
         print(f"Prompt: \"{prompt}\"")
         if not mock:
@@ -538,7 +561,7 @@ def main() -> int:
     parser.add_argument("--url", "--proxy-url", dest="proxy_url", default="http://127.0.0.1:8000", help="Atomic AI Proxy URL (default: http://127.0.0.1:8000)")
     parser.add_argument("--gateway-url", default="http://127.0.0.1:8081", help="LlamaLaunch Gateway URL (default: http://127.0.0.1:8081)")
     parser.add_argument("--backend-url", default="http://127.0.0.1:8080", help="llama-server backend URL (default: http://127.0.0.1:8080)")
-    parser.add_argument("--model", default="deepseek-v4-flash", help="Model identifier (default: deepseek-v4-flash)")
+    parser.add_argument("--model", default=None, help="Model identifier (default: auto-detected from active LlamaLaunch server)")
     parser.add_argument("--timeout", type=float, default=120.0, help="HTTP timeout in seconds (default: 120.0)")
     parser.add_argument("--stream", dest="stream", action="store_true", default=True, help="Enable SSE streaming (default)")
     parser.add_argument("--no-stream", dest="stream", action="store_false", help="Disable streaming (fetch non-stream JSON)")

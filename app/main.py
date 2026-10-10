@@ -9,6 +9,7 @@ from typing import Any, Optional
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, StreamingResponse
+import httpx
 
 from . import sse
 from .config import settings
@@ -253,17 +254,40 @@ async def healthz() -> dict:
     return {"status": "ok"}
 
 
+async def _resolve_upstream_model(requested: Optional[str] = None) -> str:
+    if requested and requested.lower() not in ("auto", "default", "auto-detect"):
+        return requested
+    try:
+        async with httpx.AsyncClient(timeout=1.5) as client:
+            resp = await client.get(f"{settings.upstream_base_url.rstrip('/')}/v1/models")
+            if resp.status_code == 200:
+                data = resp.json().get("data", [])
+                if data and isinstance(data, list) and "id" in data[0]:
+                    return data[0]["id"]
+    except Exception:
+        pass
+    return settings.upstream_model
+
+
 @app.get("/v1/models")
 async def list_models() -> dict:
+    try:
+        async with httpx.AsyncClient(timeout=1.5) as client:
+            resp = await client.get(f"{settings.upstream_base_url.rstrip('/')}/v1/models")
+            if resp.status_code == 200:
+                return resp.json()
+    except Exception:
+        pass
+    active = await _resolve_upstream_model()
     return {
         "object": "list",
-        "data": [{"id": settings.upstream_model, "object": "model", "owned_by": "atomic-proxy"}],
+        "data": [{"id": active, "object": "model", "owned_by": "atomic-proxy"}],
     }
 
 
 @app.post("/v1/chat/completions")
 async def chat_completions(request: ChatCompletionRequest):
-    requested_model = request.model or settings.upstream_model
+    requested_model = await _resolve_upstream_model(request.model)
     client = UpstreamClient()
     prepared = await _resolve_run(request, client, requested_model)
     lock = prepared.resumed_session.lock if prepared.resumed_session else None
