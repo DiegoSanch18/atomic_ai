@@ -1,0 +1,60 @@
+version: '3.8'
+
+networks:
+  ai-network:
+    driver: bridge
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. Capa Gateway / Router (:8081)
+  # Desacopla la red y enruta peticiones hacia el llama-server físico en el host
+  # ----------------------------------------------------------------------------
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    container_name: atomic-ai-gateway
+    environment:
+      - GATEWAY_HOST=0.0.0.0
+      - GATEWAY_PORT=8081
+      - DEFAULT_LOCAL_BACKEND=${DEFAULT_LOCAL_BACKEND:-http://host.docker.internal:8080}
+      - DESKTOP_BACKEND_URL=${DESKTOP_BACKEND_URL:-http://host.docker.internal:8080}
+      - LAPTOP_BACKEND_URL=${LAPTOP_BACKEND_URL:-http://host.docker.internal:8080}
+      - TRUENAS_BACKEND_URL=${TRUENAS_BACKEND_URL:-http://truenas.local:8080}
+    ports:
+      - "8081:8081"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - ai-network
+    restart: unless-stopped
+
+  # ----------------------------------------------------------------------------
+  # 2. Capa Cognitiva: Atomic AI Proxy (:8000)
+  # Orquesta descomposición atómica, micro-prompts SLM y sesiones
+  # ----------------------------------------------------------------------------
+  atomic-proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: atomic-ai-proxy
+    depends_on:
+      - gateway
+    environment:
+      - PROXY_HOST=0.0.0.0
+      - PROXY_PORT=8000
+      - UPSTREAM_BASE_URL=http://gateway:8081
+      - UPSTREAM_API_KEY=${UPSTREAM_API_KEY:-llamalaunch}
+      - UPSTREAM_MODEL=${UPSTREAM_MODEL:-gemma-4-e2b}
+      - MAX_DECOMPOSITION_DEPTH=${MAX_DECOMPOSITION_DEPTH:-1}
+      - MAX_TOOL_ROUNDS_PER_PHASE=${MAX_TOOL_ROUNDS_PER_PHASE:-25}
+      - SESSION_TTL_SECONDS=${SESSION_TTL_SECONDS:-1800}
+      - MAX_SESSIONS=${MAX_SESSIONS:-200}
+      - EXPOSE_REASONING_CONTENT=${EXPOSE_REASONING_CONTENT:-true}
+      - REQUEST_TIMEOUT_SECONDS=${REQUEST_TIMEOUT_SECONDS:-180.0}
+      - PROMPT_PROFILE=${PROMPT_PROFILE:-slm}
+    ports:
+      - "8000:8000"
+    networks:
+      - ai-network
+    restart: unless-stopped

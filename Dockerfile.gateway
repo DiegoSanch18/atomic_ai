@@ -1,0 +1,20 @@
+FROM python:3.11-slim
+
+LABEL maintainer="DiegoSanch18"
+LABEL description="Inference Gateway (:8081) - Decoupled Compute Routing & Hardware Abstraction"
+
+ENV PYTHONUNBUFFERED=1 \
+    GATEWAY_HOST=0.0.0.0 \
+    GATEWAY_PORT=8081 \
+    DEFAULT_LOCAL_BACKEND=http://host.docker.internal:8080
+
+WORKDIR /app
+
+COPY gateway/requirements.txt /app/
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY gateway/gateway.py /app/gateway.py
+
+EXPOSE 8081
+
+CMD ["python", "gateway.py"]
