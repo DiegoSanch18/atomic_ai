@@ -6,8 +6,8 @@ networks:
 
 services:
   # ----------------------------------------------------------------------------
-  # 1. Capa Gateway / Router (:8081)
-  # Desacopla la red y enruta peticiones hacia el llama-server físico en el host
+  # 1. Capa Gateway / Router (:8081) (Opcional - Perfil Standalone)
+  # Nota: En el stack completo, el Gateway oficial corre en LlamaLaunch (:8081).
   # ----------------------------------------------------------------------------
   gateway:
     build:
@@ -28,6 +28,8 @@ services:
     networks:
       - ai-network
     restart: unless-stopped
+    profiles:
+      - standalone
 
   # ----------------------------------------------------------------------------
   # 2. Capa Cognitiva: Atomic AI Proxy (:8000)
@@ -38,12 +40,10 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: atomic-ai-proxy
-    depends_on:
-      - gateway
     environment:
       - PROXY_HOST=0.0.0.0
       - PROXY_PORT=8000
-      - UPSTREAM_BASE_URL=http://gateway:8081
+      - UPSTREAM_BASE_URL=${UPSTREAM_BASE_URL:-http://gateway:8081}
       - UPSTREAM_API_KEY=${UPSTREAM_API_KEY:-llamalaunch}
       - UPSTREAM_MODEL=${UPSTREAM_MODEL:-gemma-4-e2b}
       - MAX_DECOMPOSITION_DEPTH=${MAX_DECOMPOSITION_DEPTH:-1}
@@ -55,6 +55,8 @@ services:
       - PROMPT_PROFILE=${PROMPT_PROFILE:-slm}
     ports:
       - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - ai-network
     restart: unless-stopped
