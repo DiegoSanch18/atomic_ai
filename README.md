@@ -104,6 +104,24 @@ El proxy queda disponible en `http://127.0.0.1:8000` (o el host/puerto configura
 
 Apunta cualquier cliente compatible con la API de OpenAI (SDK oficial, agentes de código, etc.) a esta URL como `base_url`.
 
+## Despliegue con Docker y LlamaLaunch
+
+Atomic AI se integra nativamente en el ecosistema de inferencia local con LlamaLaunch a través de Docker:
+
+```bash
+docker compose up -d
+```
+
+- **Puerto Host**: `http://localhost:8005` (mapeado internamente a `:8000` para evitar colisiones con otros servicios).
+- **Upstream Oficial**: Conectado directamente al Gateway central de LlamaLaunch en `http://gateway:8081` a través de la red compartida `atomic_ai_ai-network`.
+- **Detección Automática de Modelo**: Cuando una aplicación cliente (OpenCode, OpenClaw, Hermes, etc.) solicita el modelo `default` o `auto`, Atomic AI consulta al Gateway de LlamaLaunch (`GET /v1/models`) y utiliza dinámicamente el modelo que esté activo en memoria en ese momento.
+
+### Configuración en Clientes Externos (OpenCode, Hermes, etc.)
+- **Base URL**: `http://localhost:8005/v1`
+- **API Key**: `llamalaunch` (o cualquier texto)
+- **Model**: `default` (auto-detección activa)
+- **Stream**: `true`
+
 ## Configuración
 
 Variables de entorno disponibles en `.env`:
