@@ -54,7 +54,7 @@ services:
       - REQUEST_TIMEOUT_SECONDS=${REQUEST_TIMEOUT_SECONDS:-180.0}
       - PROMPT_PROFILE=${PROMPT_PROFILE:-slm}
     ports:
-      - "8000:8000"
+      - "${PROXY_HOST_PORT:-8005}:8000"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
